@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/package.json",
+  "name": "pi-provider-vertex-anthropic",
+  "version": "0.1.0",
+  "description": "Pi agent extension for Claude models via Google Cloud Vertex AI",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-agent",
+    "vertex-ai",
+    "anthropic",
+    "claude",
+    "google-cloud",
+    "extension"
+  ],
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielcherubini/pi-provider-vertex-anthropic.git"
+  },
+  "homepage": "https://github.com/danielcherubini/pi-provider-vertex-anthropic#readme",
+  "bugs": {
+    "url": "https://github.com/danielcherubini/pi-provider-vertex-anthropic/issues"
+  },
+  "author": "Daniel Cherubini",
+  "license": "MIT",
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

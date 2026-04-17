@@ -20,7 +20,7 @@ const REGION_CHOICES: Record<string, string> = {
   '5': 'asia-southeast1',
 }
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   const config = resolveConfig()
   const googleCloudCli = findGoogleCloudCliPath()
 
@@ -299,13 +299,4 @@ export default function (pi: ExtensionAPI) {
     streamSimple: streamVertexAnthropic,
   })
 
-  // Notify if project is not configured
-  pi.on('session_start', async (_event, ctx) => {
-    if (!config.project) {
-      ctx.ui?.notify(
-        'Vertex AI: No project configured. Set ANTHROPIC_VERTEX_PROJECT_ID or run /login',
-        'warning',
-      )
-    }
-  })
 }

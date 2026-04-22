@@ -34,6 +34,7 @@ export default function(pi: ExtensionAPI) {
       pi.registerProvider(PROVIDER_NAME, {
         baseUrl: `https://${buildEndpointHost(config.region)}`,
         api: API_NAME,
+        apiKey: 'vertex-anthropic',
         models: modelIds.map((id) => {
           const known = VERTEX_MODELS.find((m) => m.id === id)
           return known || {
@@ -57,6 +58,7 @@ export default function(pi: ExtensionAPI) {
   pi.registerProvider(PROVIDER_NAME, {
     baseUrl: `https://${buildEndpointHost(config.region)}`,
     api: API_NAME,
+    apiKey: 'vertex-anthropic',
 
     oauth: {
       name: 'Google Cloud Vertex AI',

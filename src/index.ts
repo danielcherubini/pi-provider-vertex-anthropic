@@ -3,9 +3,9 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 
-import { findGoogleCloudCliPath, getGoogleCloudCliToken } from './auth'
+import { findGoogleCloudCliPath, getAccessToken, getGoogleCloudCliToken } from './auth'
 import { buildEndpointHost, resolveConfig } from './config'
-import { API_NAME, PROVIDER_NAME, VERTEX_MODELS } from './models'
+import { API_NAME, PROVIDER_NAME, VERTEX_MODELS, type VertexModel } from './models'
 import { streamVertexAnthropic } from './vertex-api'
 import { exec, spawn } from './shell'
 import { collectPreRegisterModels } from './pre-register'
@@ -20,9 +20,122 @@ const REGION_CHOICES: Record<string, string> = {
   '5': 'asia-southeast1',
 }
 
-export default function(pi: ExtensionAPI) {
+/**
+ * Map Anthropic API model info to our VertexModel format.
+ */
+function mapAnthropicModelToVertex(
+  anthropicModel: {
+    id: string
+    display_name: string
+    max_input_tokens: number
+    max_tokens: number
+    capabilities: {
+      thinking?: { supported: boolean; types?: string[] }
+      images?: { supported: boolean }
+      tools?: { supported: boolean }
+      structured?: { supported: boolean }
+    }
+  },
+  pricing: VertexModel['cost'],
+): VertexModel {
+  const id = anthropicModel.id
+  // Strip the @timestamp suffix for Vertex compatibility if present
+  const vertexId = id.includes('@') ? id.split('@')[0] : id
+
+  return {
+    id: vertexId,
+    name: `${anthropicModel.display_name} (Vertex)`,
+    reasoning: anthropicModel.capabilities.thinking?.supported ?? false,
+    input: [
+      'text',
+      ...(anthropicModel.capabilities.images?.supported ? ['image'] : []),
+    ] as ('text' | 'image')[],
+    contextWindow: anthropicModel.max_input_tokens,
+    maxTokens: anthropicModel.max_tokens,
+    cost: pricing,
+  }
+}
+
+/**
+ * Fetch available Claude models from Vertex AI's Anthropic endpoint.
+ * Returns undefined if credentials aren't configured yet (first-time setup).
+ */
+async function fetchVertexModels(): Promise<{ models: VertexModel[]; project?: string; region?: string } | undefined> {
+  const config = resolveConfig()
+
+  if (!config.project) {
+    // Credentials not configured yet — first-time /login flow hasn't run
+    return undefined
+  }
+
+  const host = buildEndpointHost(config.region)
+  const url = `https://${host}/v1/projects/${config.project}/locations/${config.region}/publishers/anthropic/models`
+
+  try {
+    const token = await getAccessToken()
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    })
+
+    if (!response.ok) {
+      console.warn(`[vertex-anthropic] Failed to list models (${response.status})`)
+      return undefined
+    }
+
+    const data = await response.json()
+    const models: VertexModel[] = []
+
+    for (const m of data.models || []) {
+      // Only include Anthropic Claude models (skip Gemini, etc.)
+      if (!m.id.startsWith('claude-')) continue
+
+      const pricing = VERTEX_PRICING[m.id] ?? VERTEX_PRICING[m.id.split('@')[0]] ?? DEFAULT_PRICING
+      const model = mapAnthropicModelToVertex(m, pricing)
+      models.push(model)
+    }
+
+    // Attach project/region to each model so streamVertexAnthropic can find them
+    for (const m of models) {
+      ;(m as any).project = config.project
+      ;(m as any).region = config.region
+    }
+
+    return { models, project: config.project, region: config.region }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.warn(`[vertex-anthropic] Model discovery failed: ${msg}`)
+    return undefined
+  }
+}
+
+// Pricing lookup by model ID
+const VERTEX_PRICING: Record<string, VertexModel['cost']> = {
+  // Opus
+  'claude-opus-4-6': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  'claude-opus-4-5@20251101': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+  // Sonnet
+  'claude-sonnet-4-5@20250929': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  // Haiku
+  'claude-haiku-4-5@20251001': { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+  // Claude 3.x
+  'claude-3-5-sonnet-v2@20241022': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  'claude-3-5-sonnet@20240620': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  'claude-3-5-haiku@20241022': { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+  'claude-3-opus@20240229': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+  'claude-3-sonnet@20240229': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  'claude-3-haiku@20240307': { input: 0.25, output: 1.25, cacheRead: 0.03, cacheWrite: 0.3 },
+}
+
+const DEFAULT_PRICING: VertexModel['cost'] = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 }
+
+export default async function(pi: ExtensionAPI) {
   const config = resolveConfig()
   const googleCloudCli = findGoogleCloudCliPath()
+
+  // Try dynamic model discovery from Vertex AI
+  const discovered = await fetchVertexModels()
+  const models = discovered?.models ?? VERTEX_MODELS
 
   // Synchronous pre-registration to prevent race condition with scoped models
   try {
@@ -36,7 +149,7 @@ export default function(pi: ExtensionAPI) {
         api: API_NAME,
         apiKey: 'vertex-anthropic',
         models: modelIds.map((id) => {
-          const known = VERTEX_MODELS.find((m) => m.id === id)
+          const known = models.find((m) => m.id === id)
           return known || {
             id,
             name: id,
@@ -297,7 +410,7 @@ export default function(pi: ExtensionAPI) {
       },
     },
 
-    models: VERTEX_MODELS,
+    models: models,
     streamSimple: streamVertexAnthropic,
   })
 

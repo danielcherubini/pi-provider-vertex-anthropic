@@ -24,15 +24,13 @@ A [Pi](https://github.com/nichochar/pi) provider plugin that gives you access to
 
 ## Installation
 
-Add the package to your Pi settings file (`~/.pi/agent/settings.json`):
+Install using the Pi extension manager:
 
-```json
-{
-  "packages": ["npm:pi-provider-vertex-anthropic"]
-}
+```bash
+pi install npm:pi-provider-vertex-anthropic
 ```
 
-Then restart Pi. The provider registers automatically.
+The provider registers automatically and will be available the next time you start Pi.
 
 ## Configuration
 

@@ -6,6 +6,7 @@ import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { findGoogleCloudCliPath, getGoogleCloudCliToken } from './auth'
 import { buildEndpointHost, resolveConfig } from './config'
 import { API_NAME, PROVIDER_NAME, VERTEX_MODELS } from './models'
+import { readModelsFromJson } from './models-json'
 import { streamVertexAnthropic } from './vertex-api'
 import { exec, spawn } from './shell'
 import { collectPreRegisterModels } from './pre-register'
@@ -24,18 +25,30 @@ export default function(pi: ExtensionAPI) {
   const config = resolveConfig()
   const googleCloudCli = findGoogleCloudCliPath()
 
-  // Synchronous pre-registration to prevent race condition with scoped models
+  // Synchronous pre-registration to prevent race condition with scoped models.
+  // Merges models from models.json and settings.json enabledModels,
+  // with models.json taking precedence for metadata.
   try {
     const raw = readFileSync(SETTINGS_PATH, 'utf-8')
     const settings = JSON.parse(raw)
-    const modelIds = collectPreRegisterModels(settings)
+    const settingsModelIds = collectPreRegisterModels(settings)
+    const jsonModels = readModelsFromJson()
 
-    if (modelIds.length > 0) {
+    const allModelIds = new Set(settingsModelIds)
+    if (jsonModels) {
+      for (const m of jsonModels) {
+        if (m.id) allModelIds.add(m.id)
+      }
+    }
+
+    if (allModelIds.size > 0) {
       pi.registerProvider(PROVIDER_NAME, {
         baseUrl: `https://${buildEndpointHost(config.region)}`,
         api: API_NAME,
         apiKey: 'vertex-anthropic',
-        models: modelIds.map((id) => {
+        models: [...allModelIds].map((id) => {
+          const fromJson = jsonModels?.find((m: any) => m.id === id)
+          if (fromJson) return fromJson
           const known = VERTEX_MODELS.find((m) => m.id === id)
           return known || {
             id,
@@ -297,7 +310,9 @@ export default function(pi: ExtensionAPI) {
       },
     },
 
-    models: VERTEX_MODELS,
+    // Use models from models.json if defined for this provider,
+    // otherwise fall back to the built-in VERTEX_MODELS list.
+    ...(readModelsFromJson() ? {} : { models: VERTEX_MODELS }),
     streamSimple: streamVertexAnthropic,
   })
 

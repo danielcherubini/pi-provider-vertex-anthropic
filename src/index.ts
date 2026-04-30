@@ -1,29 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-
-const MODELS_JSON_PATH = join(homedir(), '.pi', 'agent', 'models.json')
-
-/**
- * Read user-defined models for this provider from ~/.pi/agent/models.json.
- * Returns null if none are defined, allowing fallback to VERTEX_MODELS.
- * Only reads models scoped to the vertex-anthropic provider.
- */
-function readModelsFromJson(): any[] | null {
-  try {
-    const raw = readFileSync(MODELS_JSON_PATH, 'utf-8')
-    const parsed = JSON.parse(raw)
-    const models = parsed?.providers?.[PROVIDER_NAME]?.models
-    return Array.isArray(models) && models.length > 0 ? models : null
-  } catch {
-    return null
-  }
-}
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 
 import { findGoogleCloudCliPath, getGoogleCloudCliToken } from './auth'
 import { buildEndpointHost, resolveConfig } from './config'
 import { API_NAME, PROVIDER_NAME, VERTEX_MODELS } from './models'
+import { readModelsFromJson } from './models-json'
 import { streamVertexAnthropic } from './vertex-api'
 import { exec, spawn } from './shell'
 import { collectPreRegisterModels } from './pre-register'

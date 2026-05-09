@@ -97,9 +97,24 @@ export function buildRequestBody(
   if (options?.reasoning && model.reasoning) {
     const customBudget =
       options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets]
+    let budgetTokens = customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240
+
+    // Anthropic requires max_tokens > budget_tokens. When the caller sets a
+    // small maxTokens (e.g. during compaction) we need to bump it so the
+    // invariant holds. Cap at model.maxTokens to stay within limits.
+    const minOutputTokens = 1024
+    body.max_tokens = Math.min(
+      Math.max(body.max_tokens, budgetTokens + minOutputTokens),
+      model.maxTokens,
+    )
+    // If model.maxTokens is very small, clamp budget so the invariant holds
+    if (budgetTokens >= body.max_tokens) {
+      budgetTokens = Math.max(0, body.max_tokens - minOutputTokens)
+    }
+
     body.thinking = {
       type: 'enabled',
-      budget_tokens: customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240,
+      budget_tokens: budgetTokens,
     }
   }
 

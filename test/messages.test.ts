@@ -15,8 +15,8 @@ const mockModel: Model<Api> = {
   name: 'Claude Opus 4.6',
   reasoning: true,
   input: ['text', 'image'],
-  contextWindow: 200000,
-  maxTokens: 64000,
+  contextWindow: 1000000,
+  maxTokens: 128000,
   cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
 } as Model<Api>
 

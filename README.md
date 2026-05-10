@@ -91,20 +91,20 @@ To set a Vertex model as your default, add to `~/.pi/agent/settings.json`:
 
 ## Available models
 
-| Model | ID | Thinking | Max output |
-|-------|----|----------|------------|
-| Claude Opus 4.6 | `claude-opus-4-6` | Yes | 64k |
-| Claude Opus 4.5 | `claude-opus-4-5@20251101` | Yes | 64k |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5@20250929` | Yes | 64k |
-| Claude Haiku 4.5 | `claude-haiku-4-5@20251001` | Yes | 64k |
-| Claude 3.5 Sonnet v2 | `claude-3-5-sonnet-v2@20241022` | No | 8k |
-| Claude 3.5 Sonnet | `claude-3-5-sonnet@20240620` | No | 8k |
-| Claude 3.5 Haiku | `claude-3-5-haiku@20241022` | No | 8k |
-| Claude 3 Opus | `claude-3-opus@20240229` | No | 4k |
-| Claude 3 Sonnet | `claude-3-sonnet@20240229` | No | 4k |
-| Claude 3 Haiku | `claude-3-haiku@20240307` | No | 4k |
+| Model | ID | Thinking | Context | Max output |
+|-------|----|----------|---------|------------|
+| Claude Opus 4.6 | `claude-opus-4-6` | Yes | 1M | 128k |
+| Claude Opus 4.5 | `claude-opus-4-5@20251101` | Yes | 200k | 64k |
+| Claude Sonnet 4.5 | `claude-sonnet-4-5@20250929` | Yes | 200k | 64k |
+| Claude Haiku 4.5 | `claude-haiku-4-5@20251001` | Yes | 200k | 64k |
+| Claude 3.5 Sonnet v2 | `claude-3-5-sonnet-v2@20241022` | No | 200k | 8k |
+| Claude 3.5 Sonnet | `claude-3-5-sonnet@20240620` | No | 200k | 8k |
+| Claude 3.5 Haiku | `claude-3-5-haiku@20241022` | No | 200k | 8k |
+| Claude 3 Opus | `claude-3-opus@20240229` | No | 200k | 4k |
+| Claude 3 Sonnet | `claude-3-sonnet@20240229` | No | 200k | 4k |
+| Claude 3 Haiku | `claude-3-haiku@20240307` | No | 200k | 4k |
 
-All models support **200k context**, **text + image** input, and **prompt caching**.
+All models support **text + image** input and **prompt caching**.
 
 ## Development
 

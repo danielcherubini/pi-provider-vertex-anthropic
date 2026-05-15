@@ -64,6 +64,42 @@ const THINKING_BUDGETS: Record<string, number> = {
 }
 
 /**
+ * Pi reasoning level → Anthropic adaptive-thinking effort level.
+ * Adaptive thinking only supports low/medium/high; pi's minimal/xhigh
+ * fold into the nearest neighbor.
+ */
+const ADAPTIVE_EFFORT: Record<string, 'low' | 'medium' | 'high'> = {
+  minimal: 'low',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'high',
+}
+
+/**
+ * Models newer than the 4-5 family (claude-opus-4-7, claude-sonnet-4-6, ...)
+ * use Anthropic's adaptive-thinking API:
+ *
+ *   thinking: { type: 'adaptive' }
+ *   output_config: { effort: 'low' | 'medium' | 'high' }
+ *
+ * instead of the older fixed-budget shape:
+ *
+ *   thinking: { type: 'enabled', budget_tokens: N }
+ *
+ * Sending `enabled` to a 4-6+ model returns:
+ *   `"thinking.type.enabled" is not supported for this model.`
+ *
+ * Detected by id since callers often pass custom model ids like
+ * `claude-opus-4-7@default` that aren't in our registered list.
+ */
+export function useAdaptiveThinking(modelId: string): boolean {
+  const match = modelId.match(/claude-(?:opus|sonnet|haiku)-4-(\d+)/)
+  if (!match) return false
+  return parseInt(match[1], 10) >= 6
+}
+
+/**
  * Build the Anthropic Messages API request body for Vertex AI.
  */
 export function buildRequestBody(
@@ -95,11 +131,18 @@ export function buildRequestBody(
   }
 
   if (options?.reasoning && model.reasoning) {
-    const customBudget =
-      options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets]
-    body.thinking = {
-      type: 'enabled',
-      budget_tokens: customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240,
+    if (useAdaptiveThinking(model.id)) {
+      body.thinking = { type: 'adaptive' }
+      body.output_config = {
+        effort: ADAPTIVE_EFFORT[options.reasoning] ?? 'medium',
+      }
+    } else {
+      const customBudget =
+        options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets]
+      body.thinking = {
+        type: 'enabled',
+        budget_tokens: customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240,
+      }
     }
   }
 

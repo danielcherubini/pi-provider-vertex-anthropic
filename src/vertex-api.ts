@@ -196,12 +196,22 @@ export function streamVertexAnthropic(
       const url = buildStreamUrl(region, project, vertexModelId)
       const body = buildRequestBody(model, context, options)
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+      // Opt into Anthropic's 1M-context beta for models that advertise
+      // more than the legacy 200k window. Without this header Vertex
+      // silently caps requests at 200k even though Opus 4.7 (and the
+      // 4.6 family via beta) support 1M tokens.
+      // https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-7
+      if (typeof model.contextWindow === 'number' && model.contextWindow > 200000) {
+        headers['anthropic-beta'] = 'context-1m-2025-08-07'
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(body),
         signal: options?.signal,
       })

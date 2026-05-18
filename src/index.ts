@@ -37,13 +37,21 @@ export default function(pi: ExtensionAPI) {
         apiKey: 'vertex-anthropic',
         models: modelIds.map((id) => {
           const known = VERTEX_MODELS.find((m) => m.id === id)
-          return known || {
+          if (known) return known
+          // Best-effort stub for unknown ids (e.g. future Claude releases
+          // passed via --model). 4-6+ Claude models are reasoning-capable
+          // and ship with 1M context; older models cap at 200k. We err on
+          // the larger side for newer ids so pi's auto-compact threshold
+          // doesn't trip prematurely.
+          const newer = /claude-(?:opus|sonnet|haiku)-4-(\d+)/.exec(id)
+          const isNewer = newer ? parseInt(newer[1], 10) >= 6 : false
+          return {
             id,
             name: id,
-            reasoning: false,
+            reasoning: isNewer,
             input: ['text', 'image'] as ('text' | 'image')[],
-            contextWindow: 200000,
-            maxTokens: 8192,
+            contextWindow: isNewer ? 1000000 : 200000,
+            maxTokens: isNewer ? 64000 : 8192,
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
           }
         }),

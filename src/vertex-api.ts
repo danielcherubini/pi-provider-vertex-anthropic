@@ -65,15 +65,26 @@ const THINKING_BUDGETS: Record<string, number> = {
 
 /**
  * Pi reasoning level → Anthropic adaptive-thinking effort level.
- * Adaptive thinking only supports low/medium/high; pi's minimal/xhigh
- * fold into the nearest neighbor.
+ *
+ * Anthropic effort tiers (per docs):
+ *   max    — Opus 4.7, Opus 4.6, Sonnet 4.6, Mythos Preview
+ *   xhigh  — Opus 4.7 ONLY (sending to 4.6 returns 400)
+ *   high   — default, all adaptive models
+ *   medium — all
+ *   low    — all
+ *
+ * pi has no level above xhigh, so pi xhigh maps to Anthropic 'max' to give
+ * users access to the actual ceiling. We avoid 'xhigh' because it'd break
+ * on Sonnet/Haiku 4.6. If you specifically want the intermediate 'xhigh'
+ * tier on Opus 4.7, swap the xhigh entry below.
  */
-const ADAPTIVE_EFFORT: Record<string, 'low' | 'medium' | 'high'> = {
+type AdaptiveEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+const ADAPTIVE_EFFORT: Record<string, AdaptiveEffort> = {
   minimal: 'low',
   low: 'low',
   medium: 'medium',
   high: 'high',
-  xhigh: 'high',
+  xhigh: 'max',
 }
 
 /**

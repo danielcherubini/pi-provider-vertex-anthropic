@@ -54,16 +54,20 @@ describe('buildRequestBody thinking shape', () => {
     expect(body.budget_tokens).toBeUndefined()
   })
 
-  it('maps minimal/xhigh to nearest valid effort', () => {
+  it('maps pi minimal to low and pi xhigh to max', () => {
     const minimal = buildRequestBody(makeModel('claude-opus-4-7@default'), baseContext, {
       reasoning: 'minimal' as any,
     } as any)
     expect(minimal.output_config).toEqual({ effort: 'low' })
 
+    // pi xhigh -> Anthropic 'max' (true ceiling, valid on all adaptive
+    // models including Sonnet 4.6). We intentionally don't map to
+    // Anthropic's 'xhigh' tier because that is Opus-4.7-only and would
+    // 400 elsewhere.
     const xhigh = buildRequestBody(makeModel('claude-sonnet-4-6'), baseContext, {
       reasoning: 'xhigh' as any,
     } as any)
-    expect(xhigh.output_config).toEqual({ effort: 'high' })
+    expect(xhigh.output_config).toEqual({ effort: 'max' })
   })
 
   it('uses legacy enabled shape for opus-4-5', () => {

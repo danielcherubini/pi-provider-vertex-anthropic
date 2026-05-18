@@ -64,6 +64,53 @@ const THINKING_BUDGETS: Record<string, number> = {
 }
 
 /**
+ * Pi reasoning level → Anthropic adaptive-thinking effort level.
+ *
+ * Anthropic effort tiers (per docs):
+ *   max    — Opus 4.7, Opus 4.6, Sonnet 4.6, Mythos Preview
+ *   xhigh  — Opus 4.7 ONLY (sending to 4.6 returns 400)
+ *   high   — default, all adaptive models
+ *   medium — all
+ *   low    — all
+ *
+ * pi has no level above xhigh, so pi xhigh maps to Anthropic 'max' to give
+ * users access to the actual ceiling. We avoid 'xhigh' because it'd break
+ * on Sonnet/Haiku 4.6. If you specifically want the intermediate 'xhigh'
+ * tier on Opus 4.7, swap the xhigh entry below.
+ */
+type AdaptiveEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+const ADAPTIVE_EFFORT: Record<string, AdaptiveEffort> = {
+  minimal: 'low',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'max',
+}
+
+/**
+ * Models newer than the 4-5 family (claude-opus-4-7, claude-sonnet-4-6, ...)
+ * use Anthropic's adaptive-thinking API:
+ *
+ *   thinking: { type: 'adaptive' }
+ *   output_config: { effort: 'low' | 'medium' | 'high' }
+ *
+ * instead of the older fixed-budget shape:
+ *
+ *   thinking: { type: 'enabled', budget_tokens: N }
+ *
+ * Sending `enabled` to a 4-6+ model returns:
+ *   `"thinking.type.enabled" is not supported for this model.`
+ *
+ * Detected by id since callers often pass custom model ids like
+ * `claude-opus-4-7@default` that aren't in our registered list.
+ */
+export function useAdaptiveThinking(modelId: string): boolean {
+  const match = modelId.match(/claude-(?:opus|sonnet|haiku)-4-(\d+)/)
+  if (!match) return false
+  return parseInt(match[1], 10) >= 6
+}
+
+/**
  * Build the Anthropic Messages API request body for Vertex AI.
  */
 export function buildRequestBody(
@@ -95,11 +142,25 @@ export function buildRequestBody(
   }
 
   if (options?.reasoning && model.reasoning) {
-    const customBudget =
-      options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets]
-    body.thinking = {
-      type: 'enabled',
-      budget_tokens: customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240,
+    if (useAdaptiveThinking(model.id)) {
+      // On Claude Opus 4.7 (and Mythos Preview) thinking.display defaults
+      // to "omitted" — thinking blocks still arrive but with empty
+      // `thinking` strings. Opt in to "summarized" so the user actually
+      // sees the reasoning summary. Opus 4.6 / Sonnet 4.6 default to
+      // "summarized" anyway, so this is also safe (and forward-compatible)
+      // on those models.
+      // https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking#controlling-thinking-display
+      body.thinking = { type: 'adaptive', display: 'summarized' }
+      body.output_config = {
+        effort: ADAPTIVE_EFFORT[options.reasoning] ?? 'medium',
+      }
+    } else {
+      const customBudget =
+        options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets]
+      body.thinking = {
+        type: 'enabled',
+        budget_tokens: customBudget ?? THINKING_BUDGETS[options.reasoning] ?? 10240,
+      }
     }
   }
 
@@ -153,12 +214,22 @@ export function streamVertexAnthropic(
       const url = buildStreamUrl(region, project, vertexModelId)
       const body = buildRequestBody(model, context, options)
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+      // Opt into Anthropic's 1M-context beta for models that advertise
+      // more than the legacy 200k window. Without this header Vertex
+      // silently caps requests at 200k even though Opus 4.7 (and the
+      // 4.6 family via beta) support 1M tokens.
+      // https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-7
+      if (typeof model.contextWindow === 'number' && model.contextWindow > 200000) {
+        headers['anthropic-beta'] = 'context-1m-2025-08-07'
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(body),
         signal: options?.signal,
       })

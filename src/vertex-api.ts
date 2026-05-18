@@ -132,7 +132,14 @@ export function buildRequestBody(
 
   if (options?.reasoning && model.reasoning) {
     if (useAdaptiveThinking(model.id)) {
-      body.thinking = { type: 'adaptive' }
+      // On Claude Opus 4.7 (and Mythos Preview) thinking.display defaults
+      // to "omitted" — thinking blocks still arrive but with empty
+      // `thinking` strings. Opt in to "summarized" so the user actually
+      // sees the reasoning summary. Opus 4.6 / Sonnet 4.6 default to
+      // "summarized" anyway, so this is also safe (and forward-compatible)
+      // on those models.
+      // https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking#controlling-thinking-display
+      body.thinking = { type: 'adaptive', display: 'summarized' }
       body.output_config = {
         effort: ADAPTIVE_EFFORT[options.reasoning] ?? 'medium',
       }

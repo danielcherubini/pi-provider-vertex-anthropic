@@ -49,7 +49,7 @@ describe('buildRequestBody thinking shape', () => {
     const body = buildRequestBody(makeModel('claude-opus-4-7@default'), baseContext, {
       reasoning: 'medium' as any,
     } as any)
-    expect(body.thinking).toEqual({ type: 'adaptive' })
+    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
     expect(body.output_config).toEqual({ effort: 'medium' })
     expect(body.budget_tokens).toBeUndefined()
   })
